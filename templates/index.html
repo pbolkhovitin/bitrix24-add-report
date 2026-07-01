@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLA-отчёт техподдержки Bitrix24</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.3.1/cdn.min.js"></script>
+</head>
+<body>
+
+<header class="header">
+    <div>
+        <h1>📊 SLA-отчёт техподдержки Bitrix24</h1>
+        {% if demo_mode %}
+        <span class="demo-badge">Демо-режим</span>
+        {% endif %}
+    </div>
+    <div>
+        <span class="last-sync" id="lastSync">Последняя синхронизация: —</span>
+    </div>
+</header>
+
+<div class="container">
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <div class="filter-group">
+            <label>Дата с</label>
+            <input type="date" id="filterFrom">
+        </div>
+        <div class="filter-group">
+            <label>Дата по</label>
+            <input type="date" id="filterTo">
+        </div>
+        <div class="filter-group">
+            <label>Исполнитель</label>
+            <select id="filterResponsible"><option value="">Все</option></select>
+        </div>
+        <div class="filter-group">
+            <label>Приоритет</label>
+            <select id="filterPriority"><option value="">Все</option></select>
+        </div>
+        <div class="filter-group">
+            <label>Группа</label>
+            <select id="filterGroup"><option value="">Все</option></select>
+        </div>
+        <div class="filter-group">
+            <label>Сигнал первого ответа</label>
+            <select id="filterSignal">
+                <option value="status">Смена статуса</option>
+                <option value="comment">Комментарий</option>
+                <option value="elapsed">Учёт времени</option>
+            </select>
+        </div>
+        <div class="filter-group" style="align-self:flex-end">
+            <button class="btn btn-primary" onclick="applyFilters()">Применить</button>
+        </div>
+        <div class="filter-group" style="align-self:flex-end">
+            <button class="btn btn-outline" onclick="syncData()" id="syncBtn">🔄 Обновить данные</button>
+        </div>
+        <div class="filter-group" style="align-self:flex-end">
+            <button class="btn btn-outline" onclick="openSettings()">⚙️ Настройки</button>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card"><div class="kpi-value kpi-neutral" id="kpiTotal">—</div><div class="kpi-label">Всего обращений</div></div>
+        <div class="kpi-card"><div class="kpi-value" id="kpiFRPct">—</div><div class="kpi-label">% в SLA (первый ответ)</div></div>
+        <div class="kpi-card"><div class="kpi-value" id="kpiResPct">—</div><div class="kpi-label">% в SLA (решение)</div></div>
+        <div class="kpi-card"><div class="kpi-value" id="kpiDeadlinePct">—</div><div class="kpi-label">Срок соблюдён</div></div>
+        <div class="kpi-card"><div class="kpi-value" id="kpiAvgFR">—</div><div class="kpi-label">Среднее время первого ответа</div><div class="kpi-sub" id="kpiAvgFRSub"></div></div>
+        <div class="kpi-card"><div class="kpi-value" id="kpiAvgRes">—</div><div class="kpi-label">Среднее время решения</div><div class="kpi-sub" id="kpiAvgResSub"></div></div>
+        <div class="kpi-card"><div class="kpi-value kpi-bad" id="kpiBreached">—</div><div class="kpi-label">Просрочено</div></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+        <div class="chart-card chart-card-full">
+            <h3>Динамика обращений</h3>
+            <canvas id="timelineChart"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>По исполнителям</h3>
+            <canvas id="assigneeChart"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Распределение по статусам</h3>
+            <canvas id="statusChart"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>SLA-соответствие</h3>
+            <canvas id="slaDoughnut"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>По приоритетам</h3>
+            <canvas id="priorityChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Tasks Table -->
+    <div class="table-card">
+        <div class="table-header">
+            <span>Задачи</span>
+            <span id="tableCount"></span>
+        </div>
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('task_id')">ID</th>
+                        <th onclick="sortTable('title')">Заголовок</th>
+                        <th onclick="sortTable('responsible_name')">Исполнитель</th>
+                        <th onclick="sortTable('priority')">Приоритет</th>
+                        <th onclick="sortTable('created_at')">Создано</th>
+                        <th onclick="sortTable('first_response_biz_sec')">Первый ответ</th>
+                        <th onclick="sortTable('resolution_biz_sec')">Решение</th>
+                        <th onclick="sortTable('deadline')">Срок</th>
+                        <th onclick="sortTable('sla_status')">SLA</th>
+                    </tr>
+                </thead>
+                <tbody id="tasksBody">
+                </tbody>
+            </table>
+        </div>
+        <div class="table-info" id="tableInfo"></div>
+    </div>
+
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeSettings()">&times;</button>
+        <h2>Настройки SLA</h2>
+
+        <div class="form-group">
+            <label>Рабочее время</label>
+            <div class="form-row">
+                <div><label style="font-weight:400">Начало</label><input type="time" id="whStart" value="09:00"></div>
+                <div><label style="font-weight:400">Конец</label><input type="time" id="whEnd" value="18:00"></div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Рабочие дни (через запятую, 0=Вс, 1=Пн, ..., 6=Сб)</label>
+            <input type="text" id="whWorkdays" value="1,2,3,4,5">
+        </div>
+
+        <div class="form-group">
+            <label>Праздники (по одному YYYY-MM-DD на строку)</label>
+            <textarea id="whHolidays" placeholder="2024-01-01&#10;2024-03-08"></textarea>
+        </div>
+
+        <h3 style="font-size:14px;margin:16px 0 8px">Пороги SLA (минуты)</h3>
+
+        <div id="thresholdInputs">
+            <!-- Populated from API -->
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:16px">
+            <button class="btn btn-primary" onclick="saveSettings()">Сохранить</button>
+            <button class="btn btn-outline" onclick="closeSettings()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
