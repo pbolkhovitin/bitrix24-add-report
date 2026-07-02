@@ -85,12 +85,65 @@ server:
 4. Рабочие часы и пороги SLA можно позже править прямо в UI дашборда
    (кнопка «Настройки») — изменения сохраняются в `sla_config_override.json`.
 
+## Подключение к рабочему Bitrix24
+
+### Шаг 1. Создать входящий вебхук
+
+В портале Bitrix24:
+
+1. Перейти: **Разработчикам → Входящий вебхук → Добавить вебхук**
+2. Выбрать права: **task** (задачи) и **user** (пользователи)
+3. Скопировать URL вида `https://ваш-портал/rest/1/ABCDE123456/`
+   - `1` — это `webhook_user` (ID пользователя-владельца вебхука)
+   - `ABCDE123456` — это `webhook_token` (код доступа)
+
+### Шаг 2. Найти ID пользователя «Техническая поддержка»
+
+Это `tp_user_id` — по нему фильтруются задачи службы поддержки
+(поле `RESPONSIBLE_ID` в Bitrix24). Способы найти:
+
+- Открыть профиль пользователя в портале — ID есть в URL (`user/<ID>/`)
+- Запросить через REST: `user.get` с фильтром по имени
+- Найти в таблице `b_user` базы данных портала
+
+### Шаг 3. Проверить соединение
+
+Выполнить запрос и убедиться, что возвращается JSON с данными пользователя:
+
+```bash
+curl "https://ваш-портал/rest/1/ABCDE123456/user.get?ID=1"
+```
+
+Если ответ содержит `result` с полями пользователя — вебхук работает.
+
+### Шаг 4. Создать config.yaml
+
+Скопировать шаблон из раздела [Настройка](#настройка) выше, заполнить
+`portal_url`, `webhook_user`, `webhook_token`, `tp_user_id` реальными
+значениями и сохранить в корне проекта.
+
+Файл `config.yaml` добавлен в `.gitignore` — токен не попадёт в репозиторий.
+
+### Шаг 5. Запустить
+
+```bash
+.venv/bin/python -m sla.app
+```
+
+Без флага `--demo` и с заполненным `config.yaml` приложение подключится
+к порталу и начнёт синхронизацию задач. Первый запуск загрузит все задачи
+пользователя «Техподдержка», далее — автообновление по расписанию
+(`sync.interval_minutes`, по умолчанию 60 минут).
+
+Пороги SLA и рабочие часы можно скорректировать позже через UI дашборда
+(кнопка «Настройки») — изменения сохраняются в `sla_config_override.json`.
+
 ## Запуск
 
 ### Демо-режим (без Bitrix24)
 
 ```bash
-python -m sla.app --demo
+.venv/bin/python -m sla.app --demo
 ```
 
 Откройте http://localhost:8080
@@ -98,18 +151,18 @@ python -m sla.app --demo
 ### Рабочий режим
 
 ```bash
-python -m sla.app
+.venv/bin/python -m sla.app
 ```
 
 С указанием порта:
 ```bash
-python -m sla.app --port 9090
+.venv/bin/python -m sla.app --port 9090
 ```
 
 С переменными окружения:
 ```bash
-SLA_DEMO=1 python -m sla.app
-SLA_CONFIG=/path/to/config.yaml python -m sla.app
+SLA_DEMO=1 .venv/bin/python -m sla.app
+SLA_CONFIG=/path/to/config.yaml .venv/bin/python -m sla.app
 ```
 
 ## Как считается SLA
@@ -156,7 +209,7 @@ SLA_CONFIG=/path/to/config.yaml python -m sla.app
 ## Тестирование
 
 ```bash
-pytest tests/ -v
+.venv/bin/pytest tests/ -v
 ```
 
 ## Troubleshooting
