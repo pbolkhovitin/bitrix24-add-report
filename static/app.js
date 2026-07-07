@@ -560,3 +560,234 @@ function destroyChart(key) {
         delete charts[key];
     }
 }
+
+
+// ===================== Tab Navigation =====================
+
+function switchTab(tabId, event) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    if (event) event.target.classList.add('active');
+    document.getElementById('tab-' + tabId).classList.add('active');
+
+    if (tabId === 'deviations') loadDeviations();
+    else if (tabId === 'daily') loadDailyControl();
+    else if (tabId === 'weekly') loadWeeklyReview();
+    else if (tabId === 'routing') loadRouting();
+}
+
+
+// ===================== Deviations =====================
+
+async function loadDeviations() {
+    try {
+        const data = await apiFetch('/api/deviations');
+        const container = document.getElementById('deviationSummary');
+        const body = document.getElementById('deviationBody');
+
+        const summary = data.summary || {};
+        const bySev = summary.by_severity || {};
+
+        container.innerHTML = `
+            <div class="kpi-card"><div class="kpi-value kpi-bad">${summary.total || 0}</div><div class="kpi-label">Всего отклонений</div></div>
+            <div class="kpi-card"><div class="kpi-value" style="color:var(--danger)">${bySev.high || 0}</div><div class="kpi-label">Высоких</div></div>
+            <div class="kpi-card"><div class="kpi-value" style="color:var(--warning)">${bySev.medium || 0}</div><div class="kpi-label">Средних</div></div>
+            <div class="kpi-card"><div class="kpi-value kpi-neutral">${bySev.low || 0}</div><div class="kpi-label">Низких</div></div>
+        `;
+
+        const devs = data.deviations || [];
+        if (devs.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--gray-500)">Отклонений не найдено</td></tr>';
+            return;
+        }
+
+        let html = '';
+        for (const d of devs) {
+            const badgeClass = d.severity === 'high' ? 'deviation-badge-high'
+                : d.severity === 'medium' ? 'deviation-badge-medium'
+                : 'deviation-badge-low';
+            const sevLabel = d.severity === 'high' ? 'Высокая'
+                : d.severity === 'medium' ? 'Средняя' : 'Низкая';
+            html += `<tr>
+                <td>${d.task_id}</td>
+                <td>${escapeHtml(d.title || '')}</td>
+                <td>${escapeHtml(d.type_label || '')}</td>
+                <td><span class="deviation-badge ${badgeClass}">${sevLabel}</span></td>
+                <td>${escapeHtml(d.detail || '')}</td>
+                <td>${escapeHtml(d.responsible_name || '—')}</td>
+            </tr>`;
+        }
+        body.innerHTML = html;
+    } catch (err) {
+        showToast('Ошибка загрузки отклонений: ' + err.message);
+    }
+}
+
+
+// ===================== Daily Control =====================
+
+async function loadDailyControl() {
+    try {
+        const data = await apiFetch('/api/daily_control');
+        const container = document.getElementById('dailyContent');
+
+        if (!data || !data.summary) {
+            container.innerHTML = '<p style="color:var(--gray-500)">Нет данных</p>';
+            return;
+        }
+
+        let html = `<div class="kpi-grid" style="margin-bottom:16px">
+            <div class="kpi-card"><div class="kpi-value kpi-bad">${data.summary.total_issues || 0}</div><div class="kpi-label">Всего замечаний</div></div>
+        </div>`;
+
+        const sections = [
+            { key: 'new_without_processing', title: '🆕 Новые без обработки', severity: 'medium' },
+            { key: 'without_mandatory_fields', title: '📝 Без обязательных полей', severity: 'medium' },
+            { key: 'without_owner', title: '👤 Без исполнителя', severity: 'high' },
+            { key: 'deadline_moved_without_comment', title: '📅 Сдвиг дедлайна без комментария', severity: 'medium' },
+            { key: 'without_result_description', title: '📄 Нет описания результата', severity: 'high' },
+            { key: 'without_time_logged', title: '⏱ Нет учёта времени', severity: 'high' },
+            { key: 'stuck_tasks', title: '🕸 Зависшие задачи', severity: 'medium' },
+        ];
+
+        for (const s of sections) {
+            const items = data[s.key] || [];
+            const countClass = s.severity === 'high' ? 'kpi-bad' : (s.severity === 'medium' ? 'kpi-neutral' : '');
+            html += `<div class="control-section">
+                <div class="control-section-header">
+                    <span>${s.title}</span>
+                    <span class="control-count ${countClass}">${items.length}</span>
+                </div>`;
+            if (items.length > 0) {
+                html += '<div class="control-section-body"><table><thead><tr><th>ID</th><th>Заголовок</th><th>Ответственный</th>';
+                if (s.key === 'stuck_tasks') {
+                    html += '<th>Дней в залипшем состоянии</th>';
+                } else if (s.key === 'new_without_processing') {
+                    html += '<th>Дата создания</th>';
+                }
+                html += '</tr></thead><tbody>';
+                for (const item of items) {
+                    html += `<tr>
+                        <td>${item.task_id || ''}</td>
+                        <td>${escapeHtml(item.title || '')}</td>
+                        <td>${escapeHtml(item.responsible_name || item.created_date || '—')}</td>`;
+                    if (s.key === 'stuck_tasks') {
+                        html += `<td>${item.days_stuck || '—'}</td>`;
+                    }
+                    html += '</tr>';
+                }
+                html += '</tbody></table></div>';
+            }
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+    } catch (err) {
+        showToast('Ошибка загрузки контроля диспетчера: ' + err.message);
+    }
+}
+
+
+// ===================== Weekly Review =====================
+
+async function loadWeeklyReview() {
+    try {
+        const data = await apiFetch('/api/weekly_review');
+        const container = document.getElementById('weeklyContent');
+
+        if (!data || !data.summary) {
+            container.innerHTML = '<p style="color:var(--gray-500)">Нет данных</p>';
+            return;
+        }
+
+        const s = data.summary;
+        let html = `<div class="kpi-grid" style="margin-bottom:16px">
+            <div class="kpi-card"><div class="kpi-value kpi-bad">${s.total_review_items || 0}</div><div class="kpi-label">Всего позиций</div></div>
+            <div class="kpi-card"><div class="kpi-value kpi-neutral">${s.oldest_task_days || 0}</div><div class="kpi-label">Старейшая задача (дн)</div></div>
+        </div>`;
+
+        const sections = [
+            { key: 'old_tasks', title: '🕰 Старые задачи (>7 дней)', fields: ['created_date', 'days_open'] },
+            { key: 'overdue_tasks', title: '⚠️ Просроченные задачи', fields: ['deadline'] },
+            { key: 'without_time', title: '⏱ Закрытые без учёта времени', fields: [] },
+            { key: 'without_result', title: '📄 Закрытые без описания результата', fields: [] },
+            { key: 'deadline_changes_without_comment', title: '📅 Сдвиг дедлайна без комментария', fields: ['changed_at'] },
+        ];
+
+        for (const sec of sections) {
+            const items = data[sec.key] || [];
+            html += `<div class="control-section">
+                <div class="control-section-header">
+                    <span>${sec.title}</span>
+                    <span class="control-count ${items.length > 0 ? 'kpi-bad' : ''}">${items.length}</span>
+                </div>`;
+            if (items.length > 0) {
+                html += '<div class="control-section-body"><table><thead><tr><th>ID</th><th>Заголовок</th><th>Ответственный</th>';
+                if (sec.fields.includes('days_open')) html += '<th>Дней открыта</th>';
+                else if (sec.fields.includes('created_date')) html += '<th>Создана</th>';
+                else if (sec.fields.includes('deadline')) html += '<th>Дедлайн</th>';
+                else if (sec.fields.includes('changed_at')) html += '<th>Дата изменения</th>';
+                html += '</tr></thead><tbody>';
+                for (const item of items) {
+                    html += `<tr>
+                        <td>${item.task_id || ''}</td>
+                        <td>${escapeHtml(item.title || '')}</td>
+                        <td>${escapeHtml(item.responsible_name || '—')}</td>`;
+                    if (sec.fields.includes('days_open')) html += `<td>${item.days_open || '—'}</td>`;
+                    else if (sec.fields.includes('created_date')) html += `<td>${item.created_date ? formatDate(item.created_date) : '—'}</td>`;
+                    else if (sec.fields.includes('deadline')) html += `<td>${item.deadline ? formatDate(item.deadline) : '—'}</td>`;
+                    else if (sec.fields.includes('changed_at')) html += `<td>${item.changed_at ? formatDate(item.changed_at) : '—'}</td>`;
+                    html += '</tr>';
+                }
+                html += '</tbody></table></div>';
+            }
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+    } catch (err) {
+        showToast('Ошибка загрузки еженедельного разбора: ' + err.message);
+    }
+}
+
+
+// ===================== Routing Analysis =====================
+
+async function loadRouting() {
+    try {
+        const data = await apiFetch('/api/routing');
+        const sumContainer = document.getElementById('routingSummary');
+        const body = document.getElementById('routingBody');
+
+        const summary = data.summary || {};
+        sumContainer.innerHTML = `
+            <div class="kpi-card"><div class="kpi-value kpi-neutral">${summary.total_tasks_analyzed || 0}</div><div class="kpi-label">Проанализировано задач</div></div>
+            <div class="kpi-card"><div class="kpi-value">${summary.avg_routing_count || 0}</div><div class="kpi-label">Среднее число передач</div></div>
+            <div class="kpi-card"><div class="kpi-value">${summary.avg_time_to_assignment_min || '—'}</div><div class="kpi-label">Среднее время до назначения (мин)</div></div>
+            <div class="kpi-card"><div class="kpi-value ${summary.tasks_with_escalation > 0 ? 'kpi-bad' : ''}">${summary.tasks_with_escalation || 0}</div><div class="kpi-label">Эскалаций</div></div>
+        `;
+
+        const tasks = data.by_task || [];
+        if (tasks.length === 0) {
+            body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--gray-500)">Нет данных</td></tr>';
+            return;
+        }
+
+        let html = '';
+        for (const t of tasks) {
+            html += `<tr>
+                <td>${t.task_id || ''}</td>
+                <td>${escapeHtml(t.title || '')}</td>
+                <td>${t.routing_count || 0}</td>
+                <td>${t.responsible_changes || 0}</td>
+                <td>${t.group_changes || 0}</td>
+                <td>${t.priority_changes || 0}</td>
+                <td>${t.time_to_assignment_min !== null && t.time_to_assignment_min !== undefined ? t.time_to_assignment_min : '—'}</td>
+                <td>${t.escalated ? '⚠️ Да' : '—'}</td>
+            </tr>`;
+        }
+        body.innerHTML = html;
+    } catch (err) {
+        showToast('Ошибка загрузки маршрутизации: ' + err.message);
+    }
+}

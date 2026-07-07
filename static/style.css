@@ -410,6 +410,139 @@ tbody tr:hover { background: var(--gray-50); }
     color: var(--gray-500);
 }
 
+/* Tab Bar */
+.tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--gray-200);
+    margin-bottom: 20px;
+    overflow-x: auto;
+    background: #fff;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: var(--shadow);
+}
+
+.tab {
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gray-700);
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover {
+    color: var(--primary);
+    background: var(--gray-50);
+}
+
+.tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Tab Toolbar */
+.tab-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.tab-toolbar h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin: 0;
+}
+
+/* Deviation Badges */
+.deviation-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.deviation-badge-high {
+    background: #fce8e6;
+    color: var(--danger);
+}
+
+.deviation-badge-medium {
+    background: #fef7e0;
+    color: #e37400;
+}
+
+.deviation-badge-low {
+    background: #e8f5e9;
+    color: var(--success);
+}
+
+/* Control Section Cards */
+.control-section {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.control-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-700);
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.control-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    background: var(--gray-100);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 0 8px;
+}
+
+.control-section-body {
+    padding: 0;
+}
+
+.control-section-body table {
+    margin: 0;
+    font-size: 13px;
+}
+
+.control-section-body td,
+.control-section-body th {
+    padding: 8px 12px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .charts-grid {

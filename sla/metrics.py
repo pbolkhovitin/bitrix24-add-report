@@ -1,5 +1,6 @@
 """SLA metrics computation engine."""
 
+import json
 from datetime import datetime, date
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -21,6 +22,14 @@ PRIORITY_LABELS: Dict[str, str] = {
     "3": "Высокий",
     "4": "Критический",
 }
+
+
+def get_status_labels(settings) -> Dict[str, str]:
+    """Return status labels merged with any config-driven overrides."""
+    labels = dict(STATUS_LABELS)
+    if hasattr(settings, 'process') and settings.process.status_mapping:
+        labels.update(settings.process.status_mapping)
+    return labels
 
 
 def parse_bitrix_datetime(s: Optional[str]) -> Optional[datetime]:
@@ -221,13 +230,35 @@ def compute_task_metrics(
     else:
         time_in_status = {}
 
+    # Count changes by field in history
+    deadline_changes = sum(1 for h in history if h.get("field") == "DEADLINE")
+    responsible_changes = sum(1 for h in history if h.get("field") == "RESPONSIBLE_ID")
+    priority_changes = sum(1 for h in history if h.get("field") == "PRIORITY")
+    group_changes = sum(1 for h in history if h.get("field") == "GROUP_ID")
+    routing_count = responsible_changes + group_changes
+
+    # Time logged
+    time_logged_seconds = sum(int(e.get("seconds", 0)) for e in elapsed)
+
+    # Accomplices / description
+    accomplices_raw = task.get("accomplices", "[]") or "[]"
+    has_accomplices = False
+    try:
+        accomplices_list = json.loads(accomplices_raw) if isinstance(accomplices_raw, str) else accomplices_raw
+        has_accomplices = len(accomplices_list) > 0
+    except (ValueError, TypeError):
+        pass
+    has_description = bool(task.get("description", "").strip())
+
+    status_labels = get_status_labels(settings)
+
     return {
         "task_id": task.get("id"),
         "title": task.get("title", ""),
         "priority": priority,
         "priority_label": PRIORITY_LABELS.get(str(priority), str(priority)),
         "status": task.get("status"),
-        "status_label": STATUS_LABELS.get(status_val, status_val),
+        "status_label": status_labels.get(status_val, status_val),
         "responsible_id": task.get("responsible_id"),
         "created_by": task.get("created_by"),
         "group_id": task.get("group_id"),
@@ -247,6 +278,15 @@ def compute_task_metrics(
         "sla_resolution_threshold": thr_min_res,
         "time_in_status": {k: format_duration(v) for k, v in time_in_status.items()},
         "time_in_status_sec": time_in_status,
+        "deadline_changes": deadline_changes,
+        "responsible_changes": responsible_changes,
+        "priority_changes": priority_changes,
+        "group_changes": group_changes,
+        "routing_count": routing_count,
+        "has_accomplices": has_accomplices,
+        "has_description": has_description,
+        "time_logged_seconds": time_logged_seconds,
+        "has_time_logged": time_logged_seconds > 0,
     }
 
 

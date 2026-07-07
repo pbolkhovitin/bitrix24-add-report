@@ -77,12 +77,14 @@ class BitrixClient:
         """Paginate tasks.task.list, handling nested result shape.
 
         tasks.task.list returns: {"result": {"tasks": [...], "total": N}}
+        Default select includes all standard fields + all custom UF_* fields.
         """
         params: Dict[str, Any] = {}
         if filter:
             params["filter"] = filter
-        if select:
-            params["select"] = select
+        if select is None:
+            select = ["*", "UF_*"]
+        params["select"] = select
 
         all_tasks: List[Dict[str, Any]] = []
         start = 0
@@ -142,6 +144,7 @@ class BitrixClient:
             params: Dict[str, Any] = {}
             if ids:
                 params["ID"] = ",".join(str(i) for i in ids)
+            params["SELECT"] = ["WORK_POSITION", "UF_DEPARTMENT"]
             data = self.call("user.get", params)
             return data.get("result", [])
         except BitrixError as e:

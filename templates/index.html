@@ -24,6 +24,18 @@
 
 <div class="container">
 
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+        <button class="tab active" onclick="switchTab('dashboard', event)">📊 Дашборд</button>
+        <button class="tab" onclick="switchTab('deviations', event)">⚠️ Отклонения</button>
+        <button class="tab" onclick="switchTab('daily', event)">📋 Контроль диспетчера</button>
+        <button class="tab" onclick="switchTab('weekly', event)">📅 Еженедельный разбор</button>
+        <button class="tab" onclick="switchTab('routing', event)">🔀 Маршрутизация</button>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div class="tab-content active" id="tab-dashboard">
+
     <!-- Filter Bar -->
     <div class="filter-bar">
         <div class="filter-group">
@@ -126,6 +138,80 @@
             </table>
         </div>
         <div class="table-info" id="tableInfo"></div>
+    </div>
+
+    </div><!-- /tab-dashboard -->
+
+    <!-- Deviations Tab -->
+    <div class="tab-content" id="tab-deviations">
+        <div class="tab-toolbar">
+            <h2>⚠️ Отклонения в процессах</h2>
+            <button class="btn btn-outline" onclick="loadDeviations()">🔄 Обновить</button>
+        </div>
+        <div id="deviationSummary" class="kpi-grid" style="margin-bottom:16px"></div>
+        <div class="table-card">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Заголовок</th>
+                            <th>Тип отклонения</th>
+                            <th>Важность</th>
+                            <th>Описание</th>
+                            <th>Ответственный</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deviationBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Control Tab -->
+    <div class="tab-content" id="tab-daily">
+        <div class="tab-toolbar">
+            <h2>📋 Контроль диспетчера</h2>
+            <button class="btn btn-outline" onclick="loadDailyControl()">🔄 Обновить</button>
+        </div>
+        <div id="dailyContent"></div>
+    </div>
+
+    <!-- Weekly Review Tab -->
+    <div class="tab-content" id="tab-weekly">
+        <div class="tab-toolbar">
+            <h2>📅 Еженедельный разбор</h2>
+            <button class="btn btn-outline" onclick="loadWeeklyReview()">🔄 Обновить</button>
+        </div>
+        <div id="weeklyContent"></div>
+    </div>
+
+    <!-- Routing Tab -->
+    <div class="tab-content" id="tab-routing">
+        <div class="tab-toolbar">
+            <h2>🔀 Маршрутизация задач</h2>
+            <button class="btn btn-outline" onclick="loadRouting()">🔄 Обновить</button>
+        </div>
+        <div id="routingSummary" class="kpi-grid" style="margin-bottom:16px"></div>
+        <div class="table-card">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Заголовок</th>
+                            <th>Передач</th>
+                            <th>Смена ответственного</th>
+                            <th>Смена группы</th>
+                            <th>Смена приоритета</th>
+                            <th>Время до назначения (мин)</th>
+                            <th>Эскалация</th>
+                        </tr>
+                    </thead>
+                    <tbody id="routingBody"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
 </div>

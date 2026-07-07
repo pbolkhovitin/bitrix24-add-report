@@ -21,7 +21,7 @@ from sla.config import load_settings, Settings
 from sla.store import Store
 from sla.bitrix import BitrixClient, BitrixNotConfigured
 from sla.sync import SyncService
-from sla.metrics import compute_task_metrics, aggregate, STATUS_LABELS, PRIORITY_LABELS
+from sla.metrics import compute_task_metrics, aggregate, STATUS_LABELS, PRIORITY_LABELS, get_status_labels
 from sla.demo import seed_demo
 
 logger = logging.getLogger(__name__)
@@ -367,8 +367,26 @@ def get_config():
         "working_hours": _build_wh_kwargs(),
         "sla_thresholds": _get_sla_thresholds(),
         "demo_mode": settings.demo,
-        "status_labels": STATUS_LABELS,
+        "status_labels": get_status_labels(settings),
         "priority_labels": PRIORITY_LABELS,
+        "process": {
+            "deviations": {
+                "stuck_days_threshold": settings.process.deviations.stuck_days_threshold,
+                "comment_window_minutes": settings.process.deviations.comment_window_minutes,
+                "min_result_comment_length": settings.process.deviations.min_result_comment_length,
+            },
+            "stages": {
+                "operator_minutes": settings.process.stages.operator_minutes,
+                "dispatcher_minutes": settings.process.stages.dispatcher_minutes,
+                "head_minutes": settings.process.stages.head_minutes,
+            },
+            "mandatory_fields": {
+                "std_fields": settings.process.mandatory_fields.std_fields,
+                "uf_fields": settings.process.mandatory_fields.uf_fields,
+            },
+            "status_mapping": settings.process.status_mapping,
+            "user_roles": settings.process.user_roles,
+        },
     }
 
 
@@ -416,6 +434,55 @@ def update_config(data: dict):
         logger.error("Failed to save config overrides: %s", e)
 
     return {"ok": True}
+
+
+# ---- Deviation & Process Control Endpoints ----
+
+
+@app.get("/api/deviations")
+def get_deviations():
+    if not store:
+        return {"deviations": [], "summary": {}}
+    from sla.deviations import detect_deviations
+    devs = detect_deviations(store, settings)
+    by_severity: Dict[str, int] = {"high": 0, "medium": 0, "low": 0}
+    by_type: Dict[str, int] = {}
+    for d in devs:
+        by_severity[d.get("severity", "low")] += 1
+        t = d.get("type", "unknown")
+        by_type[t] = by_type.get(t, 0) + 1
+    return {
+        "deviations": devs,
+        "summary": {
+            "total": len(devs),
+            "by_severity": by_severity,
+            "by_type": by_type,
+        },
+    }
+
+
+@app.get("/api/daily_control")
+def get_daily_control():
+    if not store:
+        return {}
+    from sla.deviations import daily_control
+    return daily_control(store, settings)
+
+
+@app.get("/api/weekly_review")
+def get_weekly_review():
+    if not store:
+        return {}
+    from sla.deviations import weekly_review
+    return weekly_review(store, settings)
+
+
+@app.get("/api/routing")
+def get_routing():
+    if not store:
+        return {"by_task": [], "summary": {}}
+    from sla.deviations import routing_analysis
+    return routing_analysis(store, settings)
 
 
 # ---- Main entry point ----

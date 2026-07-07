@@ -50,9 +50,7 @@ class SyncService:
             try:
                 tp_tasks = self.client.list_all_tasks(
                     filter={"RESPONSIBLE_ID": self.settings.bitrix.tp_user_id},
-                    select=["ID", "TITLE", "STATUS", "PRIORITY", "RESPONSIBLE_ID",
-                            "CREATED_BY", "GROUP_ID", "DEADLINE", "CREATED_DATE",
-                            "CLOSED_DATE", "CHANGED_DATE", "CLOSED_BY", "TAGS"],
+                    select=["*", "UF_*"],
                 )
                 for t in tp_tasks:
                     self.store.adopt_task(int(t.get("ID", 0)))
@@ -139,12 +137,21 @@ class SyncService:
                     last_name=u.get("LAST_NAME", ""),
                     full_name=u.get("FULL_NAME", ""),
                     active=int(u.get("ACTIVE", True)),
+                    work_position=u.get("WORK_POSITION", ""),
+                    department=str(u.get("UF_DEPARTMENT", "")),
                 )
         except Exception as e:
             logger.warning("Error syncing users: %s", e)
 
     def _upsert_task_from_api(self, task_data: dict) -> None:
         """Convert Bitrix24 API task dict to store format."""
+        accomplices = task_data.get("ACCOMPLICES", [])
+        if isinstance(accomplices, list):
+            accomplices = json.dumps(accomplices)
+        auditors = task_data.get("AUDITORS", [])
+        if isinstance(auditors, list):
+            auditors = json.dumps(auditors)
+
         self.store.upsert_task(
             task_id=int(task_data.get("ID", 0)),
             title=task_data.get("TITLE", ""),
@@ -160,4 +167,13 @@ class SyncService:
             closed_by=int(task_data.get("CLOSED_BY", 0)),
             tags=task_data.get("TAGS", ""),
             raw=json.dumps(task_data, ensure_ascii=False),
+            parent_id=int(task_data.get("PARENT_ID", 0) or 0),
+            accomplices=accomplices,
+            auditors=auditors,
+            description=task_data.get("DESCRIPTION", ""),
+            duration_fact_seconds=int(task_data.get("DURATION_FACT_SECONDS", 0) or 0),
+            duration_plan_seconds=int(task_data.get("DURATION_PLAN_SECONDS", 0) or 0),
+            time_estimate=int(task_data.get("TIME_ESTIMATE", 0) or 0),
+            mark=int(task_data.get("MARK", -1) or -1),
+            add_in_reports=int(task_data.get("ADD_IN_REPORTS", 0) or 0),
         )

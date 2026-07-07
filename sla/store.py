@@ -74,6 +74,24 @@ CREATE TABLE IF NOT EXISTS sync_state (
 """
 
 
+_TASK_COLUMNS = [
+    "parent_id INTEGER DEFAULT 0",
+    "accomplices TEXT DEFAULT ''",
+    "auditors TEXT DEFAULT ''",
+    "description TEXT DEFAULT ''",
+    "duration_fact_seconds INTEGER DEFAULT 0",
+    "duration_plan_seconds INTEGER DEFAULT 0",
+    "time_estimate INTEGER DEFAULT 0",
+    "mark INTEGER DEFAULT -1",
+    "add_in_reports INTEGER DEFAULT 0",
+]
+
+_USER_COLUMNS = [
+    "work_position TEXT DEFAULT ''",
+    "department TEXT DEFAULT ''",
+]
+
+
 def _normalize_dt(dt_str: Optional[str]) -> Optional[str]:
     """Strip timezone info from ISO datetime for consistent comparison."""
     if not dt_str:
@@ -100,6 +118,27 @@ class Store:
     def _init_schema(self) -> None:
         with self.lock:
             self.db.executescript(SCHEMA_SQL)
+
+            # Migrate tasks table — add missing columns
+            existing_task_cols = {
+                row["name"]
+                for row in self.db.execute("PRAGMA table_info(tasks)").fetchall()
+            }
+            for col_def in _TASK_COLUMNS:
+                col_name = col_def.split()[0]
+                if col_name not in existing_task_cols:
+                    self.db.execute(f"ALTER TABLE tasks ADD COLUMN {col_def}")
+
+            # Migrate users table — add missing columns
+            existing_user_cols = {
+                row["name"]
+                for row in self.db.execute("PRAGMA table_info(users)").fetchall()
+            }
+            for col_def in _USER_COLUMNS:
+                col_name = col_def.split()[0]
+                if col_name not in existing_user_cols:
+                    self.db.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+
             self.db.commit()
 
     def close(self) -> None:
@@ -123,15 +162,27 @@ class Store:
         closed_by: int = 0,
         tags: str = "",
         raw: str = "",
+        parent_id: int = 0,
+        accomplices: str = "",
+        auditors: str = "",
+        description: str = "",
+        duration_fact_seconds: int = 0,
+        duration_plan_seconds: int = 0,
+        time_estimate: int = 0,
+        mark: int = -1,
+        add_in_reports: int = 0,
     ) -> None:
         with self.lock:
             self.db.execute(
                 """
                 INSERT OR REPLACE INTO tasks
                     (id, title, status, priority, responsible_id, created_by, group_id,
-                     deadline, created_date, closed_date, changed_date, closed_by, tags, raw, first_seen)
+                     deadline, created_date, closed_date, changed_date, closed_by, tags, raw, first_seen,
+                     parent_id, accomplices, auditors, description,
+                     duration_fact_seconds, duration_plan_seconds, time_estimate, mark, add_in_reports)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        COALESCE((SELECT first_seen FROM tasks WHERE id = ?), datetime('now')))
+                        COALESCE((SELECT first_seen FROM tasks WHERE id = ?), datetime('now')),
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task_id,
@@ -149,6 +200,15 @@ class Store:
                     tags,
                     raw,
                     task_id,
+                    parent_id,
+                    accomplices,
+                    auditors,
+                    description,
+                    duration_fact_seconds,
+                    duration_plan_seconds,
+                    time_estimate,
+                    mark,
+                    add_in_reports,
                 ),
             )
             self.db.commit()
@@ -288,14 +348,16 @@ class Store:
         last_name: str,
         full_name: str,
         active: int = 1,
+        work_position: str = "",
+        department: str = "",
     ) -> None:
         with self.lock:
             self.db.execute(
                 """
-                INSERT OR REPLACE INTO users (id, name, last_name, full_name, active)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO users (id, name, last_name, full_name, active, work_position, department)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (user_id, name, last_name, full_name, active),
+                (user_id, name, last_name, full_name, active, work_position, department),
             )
             self.db.commit()
 
